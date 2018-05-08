@@ -39,6 +39,9 @@ class Polygons():
     essentials  = None
     soft_rects  = None
     consensus_coords = None
+    Lab_histograms = None
+    LBP_histograms = None
+    arch_features  = None
     #unique_expertIDs = [] 
     #unique_actionIDs = []
 
@@ -48,7 +51,10 @@ class Polygons():
         Polygons.essentials     = Polygons.__loadFromPolygonMat(DN.ESSENTIALS_KEY)
         Polygons.soft_rects     = Polygons.__loadFromPolygonMat(DN.SOFTRECT_KEY, flatten=False)
         Polygons.consensus_coords = Polygons.__loadFromDataMat(DN.CONSENSUS_COORDS_KEY)
-
+        # extracted polygon features
+        Polygons.Lab_histograms = Polygons.__loadFromPolygonMat(DN.LAB_HISTOGRAMS_KEY, flatten=False)
+        Polygons.LBP_histograms = Polygons.__loadFromPolygonMat(DN.LBP_HISTOGRAMS_KEY, flatten=False)
+        Polygons.arch_features  = Polygons.__loadFromPolygonMat(DN.ARCH_FEATURES_KEY, flatten=False)
         #Polygons.unique_expertIDs = np.unique(Polygons.soft_rects[:,1]).tolist()
         #Polygons.unique_actionIDs = np.unique(Polygons.soft_rects[:,2]).tolist()
     @staticmethod
