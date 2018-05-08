@@ -7,16 +7,18 @@ pagenum = 7     # has to be within [3,9] range. The larger the number, the small
 pimObj  = PIM(mycase, pagenum)
 
 ##################
-Caner Mercan, 2018
+License: Apache License 2.0
+author: Caner Mercan, 2018
 """
 
 
-import os.path
+import os
 import warnings
 import h5py                             # to read mat v7.3 files.
 import numpy as np
 import matplotlib.pyplot as plt
-from osgeo import gdal
+import gdal
+# from osgeo import gdal
 # my class imports
 import DataNames as DN
 from Directory import ImageDir
@@ -72,9 +74,9 @@ class PIM(ImageDir):
     def __setPIMName(self, pimID):
         self.pimName = Cases.PAIRS[pimID]
     def __setPaths(self):
-        self.RGB.setPath(self.dirRGB + self.pimName + DN.RGB_EXT) 
-        self.HE.setPath(self.dirHE + self.pimName + DN.HE_EXT) 
-        self.FGmask.setPath(self.dirFG + self.pimName + DN.FG_EXT) 
+        self.RGB.setPath(os.path.join(self.dirRGB, self.pimName + DN.RGB_EXT))
+        self.HE.setPath(os.path.join(self.dirHE, self.pimName + DN.HE_EXT))
+        self.FGmask.setPath(os.path.join(self.dirFG, self.pimName + DN.FG_EXT)) 
         if not (self.RGB.exist or self.HE.exist):
             raise Exception(f'CASE {self.pimID} RGB AND HE IMAGES MISSING!')
     def __setSize(self):
@@ -103,9 +105,10 @@ class PIM(ImageDir):
     def __setSoftROIs(self):
         casepolyfilt = Polygons.soft_rects[:,0] == self.pimID
         polygons     = Polygons.polygons[casepolyfilt]
+        essentials   = Polygons.essentials[casepolyfilt]
         softrects    = Polygons.soft_rects[casepolyfilt]
         for p in range(len(polygons)):
-            self.SoftROIs.append(SoftROI(softrects[p,1], softrects[p,2], polygons[p], self.page))
+            self.SoftROIs.append(SoftROI(softrects[p,1], softrects[p,2], polygons[p], essentials[p], self.page))
 
     ### Reading .tif and .mat from file
     def readRGB(self):
@@ -123,11 +126,12 @@ class PIM(ImageDir):
         self.FGmask.show()
 
     ### Drawing/Displaying Expert ROIs
-    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV):
+    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, onlyEssentials=False):
         expertID = [expertID] if type(expertID)=='int' else expertID
         for ROI in self.SoftROIs:
-            if ROI.expertID in expertID:
-                ROI.draw()
+            if ROI.expertID in expertID: 
+                if ROI.isEssential or not onlyEssentials:
+                    ROI.draw()
     ### Drawing/Displaying Consensus ROIs
     def drawConsensusROIs(self):
         for ROI in self.ConsensusROIs:        
@@ -135,10 +139,10 @@ class PIM(ImageDir):
     ### Printing/Displaying Expert Diagnoses
     def printExpertDiagnoses(self, num_classes=4):
         for expID, expDiag in self.ExpertDiagnoses.items():
-            print(expDiag.print(num_classes))
+            print(expDiag.toString(num_classes))
     ### Printing/Displaying Consensus Diagnoses
     def printConsensusDiagnoses(self, num_classes=4):
-        print(self.ConsensusDiagnoses.print(num_classes))
+        print(self.ConsensusDiagnoses.toString(num_classes))
 
 
 ########################################################
@@ -189,51 +193,54 @@ class PMask():
 class ROI():
     def __init__(self, page):
         self.page = page    
+    def _resize(self, mat2resize):
+        return mat2resize * (2**(3-self.page))        
     def _poly2coord(self):
         x,y = np.min(self.polygon,0)
         xW, yW = np.max(self.polygon,0) - [x, y]
         x,y,xW,yW = int(x), int(y), int(xW), int(yW)
-        return x,y,xW,xW
+        return x,y,xW,yW
     def _coord2poly(self):
         x,y,xW,yW = self.coords[0], self.coords[1], self.coords[2], self.coords[3]
         polygon = np.array([[x,y],[x+xW,y],[x+xW,y+yW],[x,y+yW]])
         return polygon
-    def draw(self, polygon, clrCode='k', width=2):
+    def _draw(self, polygon, clrCode='k', width=2):
         polygon = np.vstack((polygon, polygon[0])) # close the polygon loop
         ys, xs  = zip(*polygon)
         plt.plot(xs,ys,clrCode, linewidth=width, alpha=.6)  
-    def readPMask(self, maskPath):
+    def _readPMask(self, maskPath):
         x,y,xW,yW = self._poly2coord()
         return PIMRead.readPMaskpatch(maskPath, DN.FGMASK_KEY, x,y,xW,yW)
-    def readPImage(self, pimPath):
+    def _readPImage(self, pimPath):
         x,y,xW,yW = self._poly2coord()
         return PIMRead.readPImagepatch(pimPath, x,y,xW,yW)
-    def read(self, pimPath):
+    def _read(self, pimPath):
         isMat = pimPath[-4:] == '.mat'
-        return self.readPMask(pimPath) if isMat else self.readPImage(pimPath)
-
+        return self._readPMask(pimPath) if isMat else self._readPImage(pimPath)
 
 class SoftROI(ROI):
     colorCode = ['r','b','g'] # grouped by actionID. zoom-in->red, slow_pannings->blue, fixation->green
-    def __init__(self, expertID, actionID, polygon, page=8):
+    def __init__(self, expertID, actionID, polygon, isEssential, page=8):
         super().__init__(page)
         self.expertID   = expertID
         self.actionID   = actionID
         self.polygon    = polygon
+        self.isEssential = isEssential
         self.coords     = None
         self._inpoints   = []    # points inside polygon. 
         self._outpoints  = []    # points outside polygon but inside surrounding rectangle.
         self.__setPolygon()
         self.__setCoords()
     def __setPolygon(self): # resize polygon based on page.
-        self.polygon = self.polygon * (2**(3-self.page))
+        self.polygon[self.polygon < 0] = 0 # if there are any negative values, correct them.
+        self.polygon = self._resize(self.polygon)
     def __setCoords(self):
         self.coords = self._poly2coord()
     def readFrom(self, pimPath):
-        return super().read(pimPath)
-    def draw(self):
-        clrCode = SoftROI.colorCode[self.actionID-1] # actionID starts from 1.
-        super().draw(self.polygon, clrCode, 4)
+        return super()._read(pimPath)
+    def draw(self, width=4, color=None):
+        color = SoftROI.colorCode[self.actionID-1] if not color else color  # actionID starts from 1.
+        super()._draw(self.polygon, color, width)
     #def set_inpoints(self):    
     #    self.polygon
     #def set_outpoints(self):
@@ -248,13 +255,15 @@ class ConsensusROI(ROI):
         self.__setPolygon()
     def __setCoords(self, coords):
         self.coords = np.array([coords[2], coords[1], coords[4], coords[3]])
-        self.coords = self.coords * (2**(3-self.page))
+        self.coords[self.coords < 0] = 0  # if there are any negative values, correct them.
+        self.coords = self._resize(self.coords)
     def __setPolygon(self):
         self.polygon = self._coord2poly()
     def readFrom(self, pimPath):
-        return super().read(pimPath)
-    def draw(self):
-        super().draw(self.polygon, 'k--', 5)
+        return super()._read(pimPath)
+    def draw(self, width=5, color=None):
+        color = 'k--' if not color else color  # actionID starts from 1.
+        super()._draw(self.polygon, color, width)
     def __combinePolygons(self):
         """
         @TODO:
@@ -281,8 +290,8 @@ class ConsensusDiagnoses(Diagnoses):
     def __addDiagnosis(self, num_cls, diagnosis):
         self.diagnoses[num_cls] = diagnosis
     def __repr__(self):
-        return self.print()
-    def print(self, num_cls=4):
+        return self.toString()
+    def toString(self, num_cls=4):
         diagLabels = self._getDiagnosticLabels(self.diagnoses[num_cls], Labels.classes[num_cls])
         return 'Consensus Diagnoses: ' + ', '.join([d for d in diagLabels])    
 
@@ -292,8 +301,8 @@ class ExpertDiagnoses(Diagnoses):
         self.diagnoses = diagnoses
         self.expertID = expertID
     def __repr__(self):
-        return self.print()
-    def print(self, num_cls=4):
+        return self.toString()
+    def toString(self, num_cls=4):
         diagLabels = self._getDiagnosticLabels(self.diagnoses[num_cls], Labels.classes[num_cls])
         return f'Expert{self.expertID} Diagnoses: ' + ', '.join([d for d in diagLabels])
 
@@ -316,7 +325,7 @@ class PIMRead():
         pim = None
         try:
             gdalObj = gdal.Open(pimPath)
-            if numRows == -1 or numCols == -1: # read the whole image
+            if numRows == -1 and numCols == -1: # read the whole image
                 pim = gdalObj.ReadAsArray()                        
             else:
                 pim = gdalObj.ReadAsArray(offsetCols, offsetRows, numCols, numRows)
