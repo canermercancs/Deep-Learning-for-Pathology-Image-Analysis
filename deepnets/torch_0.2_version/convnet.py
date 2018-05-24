@@ -17,47 +17,39 @@ from .models.finetuned_cnnmodel import FinetunedModel
 class Convnet():
 
     def __init__(self, model_name = 'alexnet', pre_trained = True, num_classes = 4, model_dir = ''):
-        self.model              = None
-        self.model_name         = model_name
-        self.model_pretrained   = pre_trained
-        self.model_dir          = model_dir
-        self.num_classes        = num_classes
-        self.processor          = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model_dir      = model_dir
+        self.model_name     = model_name
+        self.num_classes    = num_classes
 
-        self.__make_model_dir__()
-        self.__set_model_props__()
-        self.__assert_model_props__()
-
-    def __make_model_dir__(self):
-        if not os.path.exists(self.model_dir):
-            os.makedirs(self.model_dir)
-    def __set_model_props__(self):
         if self.model_name.startswith('alexnet'):
-            trained_alexnet = torchvision.models.alexnet(pretrained = self.model_pretrained)
-            self.model      = FinetunedModel(self.num_classes, self.model_name, trained_alexnet)
+            pre_model  = torchvision.models.alexnet(pretrained = pre_trained)
+            self.model = FinetunedModel(num_classes, model_name, pre_model)
         else:
             raise NotImplementedError
-        # set where the model will run on.        
-        self.model.to(self.processor)
+        self.__model_dir()
+        self.__set_model_props(pre_trained)
 
-#        if torch.cuda.is_available():
-#            self.model = self.model.cuda()
-#            print('Running on GPU...')
-#        else:
-#            print('Running on CPU...')            
+    def __model_dir(self):
+        if not os.path.exists(self.model_dir):
+            os.mkdir(self.model_dir)
+
+    def __set_model_props(self, pre_trained):
+        if torch.cuda.is_available():
+            self.model = self.model.cuda()
+            print('Running on GPU...')
+        else:
+            print('Running on CPU...')            
         #self.model.features = torch.nn.DataParallel(self.model.features)
-    def __assert_model_props__():
-        assert self.model is not None
-        assert os.path.isfile(self.model_dir)        
 
     def get_model(self):
         return self.model
     def get_params(self):
         return self.model.parameters()
+
     def save_model(self, fname):
         fpath = os.path.join(self.model_dir, fname)    
-        #pdb.set_trace()  
-        fpath = update_path(fpath)  
+        #pdb.set_trace()    
+        fpath = update_path(fpath)
         torch.save(self.model.state_dict(), fpath)
     def load_model(self, epoch=None):
         fname = f'finetuned({self.model_name})model'
@@ -66,12 +58,10 @@ class Convnet():
         self.model.load_state_dict(torch.load(os.path.join(self.model_dir, fname)))
 
     def fit(self, dataloaders, criterion, optimizer, scheduler, num_epochs=(0, 500)):  
-        pdb.set_trace()
         epoch_stats   = Stats(phases = ['train', 'val'])
         dataset_sizes = {x: len(dataloaders[x].dataset) for x in ['train', 'val']}
-
-        #best_model_W  = copy.deepcopy(self.model.state_dict())
         for epoch in range(num_epochs[0], num_epochs[1]):
+
             for phase in ['train', 'val']:
                 if phase == 'train':
                     scheduler.step()
@@ -84,52 +74,35 @@ class Convnet():
                 running_loss = 0.0
                 # Iterate over data.
                 for i, (inputs, labels) in enumerate(dataloaders[phase]):
-                    inputs = inputs.to(self.processor)
-                    labels = labels.to(self.processor)
-                
-                    #inputs, labels = Variable(inputs), Variable(labels)			
-                    #if torch.cuda.is_available():
-                    #    inputs, labels = inputs.cuda(), labels.cuda()    
+                    inputs, labels = Variable(inputs), Variable(labels)			
+                    if torch.cuda.is_available():
+                        inputs, labels = inputs.cuda(), labels.cuda()    
 
                     # zero the parameter gradients
                     optimizer.zero_grad()
 
                     # forward
-                    # track history if only in train
-                    with torch.set_grad_enabled(phase == 'train'):
-                        outputs = self.model(inputs)
-                        _, preds = torch.max(outputs, 1)
-                        loss = criterion(outputs, labels)
+                    outputs = self.model(inputs)
+                    loss = criterion(outputs, labels)
+                    _, preds = torch.max(outputs, 1)
 
-                        # backward + optimize only if in training phase
-                        if phase == 'train':
-                            loss.backward()
-                            optimizer.step()
-
-                    ## forward
-                    #outputs = self.model(inputs)
-                    #loss = criterion(outputs, labels)
-                    #_, preds = torch.max(outputs, 1)
-
-                    ## backward + optimize only if in training phase
-                    #if phase == 'train':
-                    #    loss.backward()
-                    #    optimizer.step()
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
 
                     # statistics
                     # print statistics
-                    # running_loss += loss.data[0] # old notation.
-                    running.loss += loss.item()
+                    running_loss += loss.data[0]
                     if i % 50 == 49:    # print every 50 minibatches
                         print('[%d, %d] loss: %.3f' % (epoch+1, i+1, running_loss/50))
                         running_loss = 0.0				
 
-                    # running_loss_epoch    += loss.data[0] * inputs.size(0) # old notation.
-                    running_loss_epoch      += loss.item() * inputs.size(0)
-                    running_corrects_epoch  += torch.sum(preds == labels).item()
+                    running_loss_epoch += loss.data[0] * inputs.size(0)
+                    running_corrects_epoch += torch.sum(preds == labels).data[0]
                 
                 epoch_loss = running_loss_epoch / dataset_sizes[phase]
-                epoch_acc  = running_corrects_epoch / dataset_sizes[phase]
+                epoch_acc = running_corrects_epoch / dataset_sizes[phase]
                 print(f'{self.model_name} at {self.model_dir}')
                 print('Epoch #{} {} Loss: {:.3f}'.format(epoch+1, phase, epoch_loss))
                 print('Epoch #{} {} Accuracy: {:.3f}'.format(epoch+1, phase, epoch_acc))
@@ -137,21 +110,13 @@ class Convnet():
                 # keeping track of the epoch progress
                 epoch_stats(phase, epoch_loss, epoch_acc)
                 epoch_stats.write2file(self.model_dir)
-
-                # deep copy the model
-                if phase == 'val' and epoch_acc > best_acc:
-                    #best_model_W = copy.deepcopy(model.state_dict())
-                    best_acc = epoch_acc
-                    fname    = f'finetuned({self.model_name})bestmodel'
-                    self.save_model(fname) 
-	
-    		# write model to file at every 50 epochs.
+                
+			# write model to file at every 50 epochs.
             if epoch % 50 == 49:
                 fname = f'finetuned({self.model_name})model_epoch({epoch+1})'
                 self.save_model(fname)
-                
-        #self.model.load_state_dict(best_model_W)
-        #return self.model
+
+        return epoch_stats
 
 import pickle
 class Stats():

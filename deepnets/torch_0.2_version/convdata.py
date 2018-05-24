@@ -4,7 +4,6 @@ author: Caner Mercan
 
 from __future__ import print_function, division
 
-import pdb
 import torch
 import numpy as np
 import torchvision
@@ -26,9 +25,8 @@ class Convdata():
     def __call__(self, batch_size = 64):
         data_transforms = {
             'train': transforms.Compose([
+                pdb.set_trace()
                 transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(90),
                 transforms.ToTensor(),
                 transforms.Normalize(self.MEAN_GLOBAL, self.STD_GLOBAL)
             ]), 
