@@ -4,24 +4,23 @@ author: Caner Mercan
 
 import pdb
 import os 
+import sys
 import time
 import copy
 import numpy as np
 import torch
-from torch.autograd import Variable
 import torchvision
+from torch.autograd import Variable
+# my own modules
+from . import convprops as CP
+from .utils import error_handling as ERR
 from .models.convmodel import ConvnetModel
-from .models.convprops as CP
-#from torchvision import datasets, models, transforms
-
 
 
 class Convnet():
-
     def __init__(self, model_name = '', pre_trained = True, num_classes = 4, model_dir = ''):
-        
-    	# model name cannot be empty
-    	assert model_name.rstrip().lstrip()
+        # model name cannot be empty
+        assert model_name.rstrip().lstrip()
 
         self.model              = None
         self.model_name         = model_name
@@ -37,25 +36,27 @@ class Convnet():
     def __make_model_dir__(self):
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
+
     def __set_model_props__(self):
         if self.model_name.startswith('alexnet'):
             trainedNet = torchvision.models.alexnet(pretrained = self.model_pretrained)
         elif self.model_name.startswith('vgg'):
-        	vgg_model  = CP.VGG_TYPE[self.model_name] 
-        	trainedNet = vgg_model(pretrained = self.model_pretrained)
+            try:
+                assert self.model_name in CP.VGG_MODELS
+            except AssertionError:
+                print(ERR.CONV_MODEL_KEY_ERROR['vgg'])
+            # get the model
+            vgg_model  = CP.VGG_MODELS[self.model_name] 
+            trainedNet = vgg_model(pretrained = self.model_pretrained)
         else:
             raise NotImplementedError
-		self.model      = ConvnetModel(self.num_classes, self.model_name, trainedNet)
+        
+        # set the model and its parameters.
+        self.model = ConvnetModel(self.num_classes, self.model_name, trainedNet)
         # set where the model will run on.        
         self.model.to(self.processor)
         print(f'Running on {self.processor}')
 
-#        if torch.cuda.is_available():
-#            self.model = self.model.cuda()
-#            print('Running on GPU...')
-#        else:
-#            print('Running on CPU...')            
-        #self.model.features = torch.nn.DataParallel(self.model.features)
     def __assert_model_props__(self):
         assert self.model is not None
         assert os.path.exists(self.model_dir)        
@@ -64,7 +65,6 @@ class Convnet():
         return self.model
     def get_params(self):
         return self.model.parameters()
-
 
     # @todo: move to convmodel.ConvnetModel class.
     def save_model(self, fname):
@@ -102,10 +102,6 @@ class Convnet():
                     inputs = inputs.to(self.processor)
                     labels = labels.to(self.processor)
                 
-                    #inputs, labels = Variable(inputs), Variable(labels)			
-                    #if torch.cuda.is_available():
-                    #    inputs, labels = inputs.cuda(), labels.cuda()    
-
                     # zero the parameter gradients
                     optimizer.zero_grad()
 
@@ -121,19 +117,6 @@ class Convnet():
                             loss.backward()
                             optimizer.step()
 
-                    ## forward
-                    #outputs = self.model(inputs)
-                    #loss = criterion(outputs, labels)
-                    #_, preds = torch.max(outputs, 1)
-
-                    ## backward + optimize only if in training phase
-                    #if phase == 'train':
-                    #    loss.backward()
-                    #    optimizer.step()
-
-                    # statistics
-                    # print statistics
-                    # running_loss += loss.data[0] # old notation.
                     running_loss += loss.item()
                     if i % 50 == 49:    # print every 50 minibatches
                         print('[%d, %d] loss: %.3f' % (epoch+1, i+1, running_loss/50))
