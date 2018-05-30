@@ -12,7 +12,7 @@ from torchvision import datasets, models, transforms
 import time
 import os
 import copy
-import deepnets.convprops as PR
+import .convprops as CP
 # import matplotlib.pyplot as plt
 
 class Convdata():
@@ -20,8 +20,8 @@ class Convdata():
         self.loaders 	 = None
         self.class_names = []
         self.data_path   = data_path
-        self.MEAN_GLOBAL = PR.MEAN_CONVNET[model_name]
-        self.STD_GLOBAL  = PR.STD_CONVNET[model_name]     
+        self.MEAN_GLOBAL = CP.MEAN_CONVNET[model_name]
+        self.STD_GLOBAL  = CP.STD_CONVNET[model_name]     
 
     def __call__(self, batch_size = 64):
         data_transforms = {
