@@ -10,13 +10,19 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 import torchvision
-# from deepnets.models.finetuned_cnnmodel import FinetunedModel
-from .models.finetuned_cnnmodel import FinetunedModel
+from .models.convmodel import ConvnetModel
+from .models.convprops as CP
 #from torchvision import datasets, models, transforms
+
+
 
 class Convnet():
 
-    def __init__(self, model_name = 'alexnet', pre_trained = True, num_classes = 4, model_dir = ''):
+    def __init__(self, model_name = '', pre_trained = True, num_classes = 4, model_dir = ''):
+        
+    	# model name cannot be empty
+    	assert model_name.rstrip().lstrip()
+
         self.model              = None
         self.model_name         = model_name
         self.model_pretrained   = pre_trained
@@ -33,12 +39,16 @@ class Convnet():
             os.makedirs(self.model_dir)
     def __set_model_props__(self):
         if self.model_name.startswith('alexnet'):
-            trained_alexnet = torchvision.models.alexnet(pretrained = self.model_pretrained)
-            self.model      = FinetunedModel(self.num_classes, self.model_name, trained_alexnet)
+            trainedNet = torchvision.models.alexnet(pretrained = self.model_pretrained)
+        elif self.model_name.startswith('vgg'):
+        	vgg_model  = CP.VGG_TYPE[self.model_name] 
+        	trainedNet = vgg_model(pretrained = self.model_pretrained)
         else:
             raise NotImplementedError
+		self.model      = ConvnetModel(self.num_classes, self.model_name, trainedNet)
         # set where the model will run on.        
         self.model.to(self.processor)
+        print(f'Running on {self.processor}')
 
 #        if torch.cuda.is_available():
 #            self.model = self.model.cuda()
@@ -46,19 +56,24 @@ class Convnet():
 #        else:
 #            print('Running on CPU...')            
         #self.model.features = torch.nn.DataParallel(self.model.features)
-    def __assert_model_props__():
+    def __assert_model_props__(self):
         assert self.model is not None
-        assert os.path.isfile(self.model_dir)        
+        assert os.path.exists(self.model_dir)        
 
     def get_model(self):
         return self.model
     def get_params(self):
         return self.model.parameters()
+
+
+    # @todo: move to convmodel.ConvnetModel class.
     def save_model(self, fname):
         fpath = os.path.join(self.model_dir, fname)    
         #pdb.set_trace()  
         fpath = update_path(fpath)  
         torch.save(self.model.state_dict(), fpath)
+
+    # @todo: move to convmodel.ConvnetModel class.    
     def load_model(self, epoch=None):
         fname = f'finetuned({self.model_name})model'
         if epoch is not None:        
@@ -66,7 +81,7 @@ class Convnet():
         self.model.load_state_dict(torch.load(os.path.join(self.model_dir, fname)))
 
     def fit(self, dataloaders, criterion, optimizer, scheduler, num_epochs=(0, 500)):  
-        pdb.set_trace()
+        #pdb.set_trace()
         epoch_stats   = Stats(phases = ['train', 'val'])
         dataset_sizes = {x: len(dataloaders[x].dataset) for x in ['train', 'val']}
 
@@ -119,7 +134,7 @@ class Convnet():
                     # statistics
                     # print statistics
                     # running_loss += loss.data[0] # old notation.
-                    running.loss += loss.item()
+                    running_loss += loss.item()
                     if i % 50 == 49:    # print every 50 minibatches
                         print('[%d, %d] loss: %.3f' % (epoch+1, i+1, running_loss/50))
                         running_loss = 0.0				

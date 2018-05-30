@@ -14,7 +14,6 @@ class ConvnetModel(nn.Module):
                 nn.Linear(4096, 4096),
                 nn.ReLU(inplace = True),
                 nn.Linear(4096, num_classes))
-
         elif self.model_name.startswith('vgg'):
             self.features   = model.features
             self.classifier = nn.Sequential(
@@ -24,9 +23,7 @@ class ConvnetModel(nn.Module):
                 nn.Linear(4096, 4096),
                 nn.ReLU(inplace = True),
                 nn.Dropout(p = 0.5),
-                nn.Linear(4096, num_classes),
-            )
-
+                nn.Linear(4096, num_classes))
         #elif self.model_name.startswith('resnet'):
         #   kinda more complicated to do than alex and vgg nets.
         #   will do later on.  

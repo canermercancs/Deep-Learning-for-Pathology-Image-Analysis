@@ -28,7 +28,7 @@ class Convdata():
             'train': transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(90),
+                transforms.RandomRotation(30),
                 transforms.ToTensor(),
                 transforms.Normalize(self.MEAN_GLOBAL, self.STD_GLOBAL)
             ]), 
@@ -37,17 +37,17 @@ class Convdata():
                 transforms.Normalize(self.MEAN_GLOBAL, self.STD_GLOBAL)
             ])
         }
-        image_datasets 	= {x: datasets.ImageFolder(os.path.join(self.data_path, x),
-                                                	data_transforms[x]) 
-							for x in ['train', 'val']}
-        dataloaders 	= {x: torch.utils.data.DataLoader(image_datasets[x], 
+        image_datasets 	= {phase: datasets.ImageFolder(os.path.join(self.data_path, phase),
+                                                	data_transforms[phase]) 
+							for phase in ['train', 'val']}
+        dataloaders 	= {phase: torch.utils.data.DataLoader(image_datasets[phase], 
 														batch_size = batch_size, 
 														shuffle = True, 
 														num_workers = 8) 
-							for x in ['train', 'val']}
+							for phase in ['train', 'val']}
 
         self.loaders 		= dataloaders 
-        self.class_names 	= {x: image_datasets[x].classes for x in ['train', 'val']}
+        self.class_names 	= {phase: image_datasets[phase].classes for phase in ['train', 'val']}
 
     def getData(self):
         return self.loaders
@@ -55,7 +55,7 @@ class Convdata():
     def getImages(self, datatype = 'train'):
         """Imshow for Tensor."""
         inputs, classes = next(iter(self.loaders[datatype]))
-        title = [self.class_names[datatype][x] for x in classes]
+        title = [self.class_names[datatype][c] for c in classes]
         inp = torchvision.utils.make_grid(inputs)
         inp = inp.numpy().transpose((1, 2, 0))
 
