@@ -7,9 +7,9 @@ License: Apache License 2.0
 author: Caner Mercan, 2018
 """
 
-
-from digiPath.directory import DataDir as DD
-import digiPath.dataNames as DN
+import numpy as np
+from .directory import DataDir as DD
+from . import dataNames as DN
 import scipy.io as sio
 
 
@@ -18,6 +18,7 @@ class Cases():
     Loading all case IDs and names into memory.
 
     """
+    dir    = DD.DIR_DATA_SUPLEMENTARY
     IDS     = None
     NAMES   = None
     CV      = None
@@ -26,7 +27,7 @@ class Cases():
     @staticmethod
     def loadCasesMat():
         cases_struct = sio.loadmat(DD.DIR_DATA_SUPLEMENTARY + DN.CASES_MFILE)
-        Cases.CV     = cases_struct[DN.CASECV_KEY]
+        Cases.CV     = cases_struct[DN.CASECV_KEY].tolist()
         Cases.IDS    = cases_struct[DN.CASEIDS_KEY].flatten().tolist()
         Cases.NAMES  = [c[0][:-4] for c in cases_struct[DN.CASENAMES_KEY].flatten()]
         Cases.PAIRS  = {cID:cName for cID,cName in zip(Cases.IDS, Cases.NAMES)}   
@@ -36,6 +37,7 @@ class Polygons():
     """
     Loading all polygons (and soft_rects) into memory.
     """
+    dir        = DD.DIR_DATA
     polygons    = None
     essentials  = None
     soft_rects  = None
@@ -58,6 +60,11 @@ class Polygons():
         Polygons.arch_features  = Polygons.__loadFromPolygonMat(DN.ARCH_FEATURES_KEY, flatten=False)
         #Polygons.unique_expertIDs = np.unique(Polygons.soft_rects[:,1]).tolist()
         #Polygons.unique_actionIDs = np.unique(Polygons.soft_rects[:,2]).tolist()
+    
+        # typically polygons/coords load into memory as uint16; may need to convert to signed not to have computational problems.        
+        Polygons.polygons           = np.array(list(map(lambda x: x.astype(np.int32), Polygons.polygons)))
+        Polygons.consensus_coords   = np.array(list(map(lambda x: x.astype(np.int32), Polygons.consensus_coords)))
+        
     @staticmethod
     def __loadFromPolygonMat(KEY, flatten=True):
         """
@@ -83,10 +90,11 @@ class Labels():
     """
     Loads all class labels into memory.
     """
-    NUM_CLASSES        = DN.NUM_CLASSES
-    classes            = {}
-    expert_diags       = {}
-    consensus_diags    = {}
+    dir             = DD.DIR_DATA 
+    NUM_CLASSES     = DN.NUM_CLASSES
+    classes         = {}
+    expert_diags    = {}
+    consensus_diags = {}
 
     def loadLabelsMat():
         for i,cls in enumerate(Labels.NUM_CLASSES):
