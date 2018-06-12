@@ -36,9 +36,9 @@ class PIM(ImageDir):
         self.__load_data__()
         
         self.pimID   = None
-        self.__setPIMID__(pimID)     # checks and sets self.pimID 
+        self.__setPIMID__(pimID)   # checks and sets self.pimID 
         self.pimName = None
-        self.__setPIMName__()       # sets self.pimName
+        self.__setPIMName__()      # sets self.pimName
         self.pimSize = []
         self.pimCV   = -1          # which fold this case belongs to.
 
@@ -131,12 +131,27 @@ class PIM(ImageDir):
         self.FGmask.show()
 
     ### Drawing/Displaying Expert ROIs
-    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, onlyEssentials=False, width=3, color=None):
+    # def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, onlyEssentials=False, width=3, color=None):
+    #    expertID = [expertID] if isinstance(expertID, int) else expertID
+    #    for ROI in self.SoftROIs:
+    #        if ROI.expertID in expertID: 
+    #            if ROI.isEssential or not onlyEssentials:
+    #                ROI.draw(width=width, color=color)
+    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, essentials=0, width=3, color=None):
+        """
+        draws softROI on image as a polygons.
+        expertID denotes the expert for which the polygons will be drawn for.
+        essentials ->  0 for all polygons
+                   ->  1 for essential polygons
+                   -> -1 for non-essential polygons
+        """
         expertID = [expertID] if isinstance(expertID, int) else expertID
         for ROI in self.SoftROIs:
             if ROI.expertID in expertID: 
-                if ROI.isEssential or not onlyEssentials:
-                    ROI.draw(width=width, color=color)
+                if (essentials==1 and not ROI.isEssential) or (essentials==-1 and ROI.isEssential):
+                    continue
+                else:
+                    ROI.draw(width=width, color=color)                    
     ### Drawing/Displaying Consensus ROIs
     def drawConsensusROIs(self, width=3, color=None):
         for ROI in self.ConsensusROIs:        
