@@ -16,11 +16,11 @@ import warnings
 import numpy as np
 import gdal
 # my class imports
-import digiPath.dataNames as DN
-from digiPath.directory import ImageDir
-from digiPath.data import Cases, Polygons, Labels
-from digiPath.roi import ConsensusROI, SoftROI
-from digiPath.pim_meta import PImage, PMask
+from . import dataNames as DN
+from .directory import ImageDir
+from .data import Cases, Polygons, Labels
+from .roi import ConsensusROI, SoftROI
+from .pim_meta import PImage, PMask
 
 class PIM(ImageDir): 
     """
@@ -36,10 +36,11 @@ class PIM(ImageDir):
         self.__load_data__()
         
         self.pimID   = None
+        self.__setPIMID__(pimID)     # checks and sets self.pimID 
         self.pimName = None
-        self.__setPIMID(pimID)     # checks and sets self.pimID 
-        self.__setPIMName(pimID)   # sets self.pimName
+        self.__setPIMName__()       # sets self.pimName
         self.pimSize = []
+        self.pimCV   = -1          # which fold this case belongs to.
 
         self.RGB     = PImage()    # only loaded when readRGB is called
         self.HE      = PImage()    # only loaded when readHE is called
@@ -52,8 +53,9 @@ class PIM(ImageDir):
         self.ExpertDiagnoses    = {} 	# three experts; three diagnoses; each has their own diagnoses (dict)
 
         ##################
-        self.__setPaths()          # also raise exception if RGB and HE paths do not exist.
-        self.__setSize()           # sets pimSize 
+        self.__setPaths__()          # also raise exception if RGB and HE paths do not exist.
+        self.__setSize__()           # sets pimSize 
+        self.__setCV__()
         
         self.__setConsensusROIs()       # PIM consensus ROIs and diagnoses
         self.__setSoftROIs()            # PIM (soft)ROIs by each pathologist
@@ -65,24 +67,26 @@ class PIM(ImageDir):
         Polygons.loadPolygonsMat()              # load Polygon Data
         Labels.loadLabelsMat()                  # load Labels Data
         Cases.loadCasesMat()                    # load Cases Data
-    def __setPIMID(self, pimID):
+    def __setPIMID__(self, pimID):
         if pimID not in Cases.IDS:
             raise Exception(f'CASE {pimID} DOES NOT EXIST!')
         self.pimID = pimID
-    def __setPIMName(self, pimID):
-        self.pimName = Cases.PAIRS[pimID]
-    def __setPaths(self):
+    def __setPIMName__(self):
+        self.pimName = Cases.PAIRS[self.pimID]
+    def __setPaths__(self):
         self.RGB.setPath(os.path.join(self.dirRGB, self.pimName + DN.RGB_EXT))
         self.HE.setPath(os.path.join(self.dirHE, self.pimName + DN.HE_EXT))
         self.FGmask.setPath(os.path.join(self.dirFG, self.pimName + DN.FG_EXT)) 
         if not (self.RGB.exist or self.HE.exist):
             raise Exception(f'CASE {self.pimID} RGB AND HE IMAGES MISSING!')
-    def __setSize(self):
+    def __setSize__(self):
         path         = self.RGB.path if self.RGB.exist else self.HE.path
         gdalObj      = gdal.Open(path)
         self.pimSize = [gdalObj.RasterYSize, gdalObj.RasterXSize]
         gdalObj      = None
-
+    def __setCV__(self):
+        self.pimCV = Cases.CV[Cases.IDS.index(self.pimID)].index(1) 
+    
     def __setExpertDiagnoses(self):
         caseIdx = Cases.IDS.index(self.pimID)
         for e, EXPERT_ID in enumerate(DN.EXPERT_ABBREV):
@@ -127,16 +131,16 @@ class PIM(ImageDir):
         self.FGmask.show()
 
     ### Drawing/Displaying Expert ROIs
-    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, onlyEssentials=False):
-        expertID = [expertID] if type(expertID)=='int' else expertID
+    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, onlyEssentials=False, width=3, color=None):
+        expertID = [expertID] if isinstance(expertID, int) else expertID
         for ROI in self.SoftROIs:
             if ROI.expertID in expertID: 
                 if ROI.isEssential or not onlyEssentials:
-                    ROI.draw()
+                    ROI.draw(width=width, color=color)
     ### Drawing/Displaying Consensus ROIs
-    def drawConsensusROIs(self):
+    def drawConsensusROIs(self, width=3, color=None):
         for ROI in self.ConsensusROIs:        
-            ROI.draw()
+            ROI.draw(width=width, color=color)
     ### Printing/Displaying Expert Diagnoses
     def printExpertDiagnoses(self, num_classes=4):
         for expID, expDiag in self.ExpertDiagnoses.items():
