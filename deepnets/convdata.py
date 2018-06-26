@@ -12,14 +12,17 @@ from torchvision import datasets, models, transforms
 import time
 import os
 import copy
-import .convprops as CP
-# import matplotlib.pyplot as plt
+from deepnets import convprops as CP
 
-class Convdata():
-    def __init__(self, model_name='alexnet', data_path=''):
-        self.loaders 	 = None
+
+class ConvData():
+    def __init__(self, model_name='', data_path=''):
         self.class_names = []
+        self.loaders     = None
         self.data_path   = data_path
+        
+        # since there are many variations of vgg models, encode their keys as 'vgg' in short.
+        model_name       = 'vgg' if model_name.startswith('vgg') else model_name
         self.MEAN_GLOBAL = CP.MEAN_CONVNET[model_name]
         self.STD_GLOBAL  = CP.STD_CONVNET[model_name]     
 
@@ -28,7 +31,7 @@ class Convdata():
             'train': transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(30),
+                transforms.RandomRotation(45),
                 transforms.ToTensor(),
                 transforms.Normalize(self.MEAN_GLOBAL, self.STD_GLOBAL)
             ]), 
@@ -37,21 +40,20 @@ class Convdata():
                 transforms.Normalize(self.MEAN_GLOBAL, self.STD_GLOBAL)
             ])
         }
-        image_datasets 	= {phase: datasets.ImageFolder(os.path.join(self.data_path, phase),
-                                                	data_transforms[phase]) 
-							for phase in ['train', 'val']}
-        dataloaders 	= {phase: torch.utils.data.DataLoader(image_datasets[phase], 
-														batch_size = batch_size, 
-														shuffle = True, 
-														num_workers = 8) 
-							for phase in ['train', 'val']}
-
-        self.loaders 		= dataloaders 
-        self.class_names 	= {phase: image_datasets[phase].classes for phase in ['train', 'val']}
+        image_datasets = {phase: datasets.ImageFolder(os.path.join(self.data_path, phase),
+                                                    data_transforms[phase]) 
+                                                    for phase in ['train', 'val']}
+        dataloaders = {phase: torch.utils.data.DataLoader(image_datasets[phase], 
+                                                    batch_size = batch_size, 
+                                                    shuffle = True, 
+                                                    num_workers = 8) 
+                                                    for phase in ['train', 'val']}
+        self.loaders     = dataloaders 
+        self.class_names = {phase: image_datasets[phase].classes for phase in ['train', 'val']}
 
     def getData(self):
         return self.loaders
-	
+    
     def getImages(self, datatype = 'train'):
         """Imshow for Tensor."""
         inputs, classes = next(iter(self.loaders[datatype]))

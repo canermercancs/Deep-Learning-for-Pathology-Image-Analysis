@@ -9,8 +9,8 @@ author: Caner Mercan, 2018
 
 import os
 import matplotlib.pyplot as plt
-import digiPath.dataNames as DN
-from digiPath.utils.pim_reader import PIMRead
+from . import dataNames as DN
+from .utils.pim_reader import PIMRead
 
 ########################################################
 ### Pathology Image (.tif) and Pathology Mask (.mat) ###

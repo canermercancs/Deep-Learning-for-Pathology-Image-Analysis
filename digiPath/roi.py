@@ -67,12 +67,12 @@ class ROI():
 
 class SoftROI(ROI):
     colorCode = ['r','b','g'] # grouped by actionID. zoom-in->red, slow_pannings->blue, fixation->green
-    def __init__(self, expertID, actionID, polygon, is_essential, paths, page=8):
+    def __init__(self, expertID, actionID, polygon, polygon_filters, paths, page=8):
         super().__init__(paths, page)
         self.expertID    = expertID
         self.actionID    = actionID
         self.polygon     = polygon
-        self.is_essential = is_essential
+        self.filters     = polygon_filters
         self.coords      = None
         # self._inpoints   = []    # points inside polygon. 
         # self._outpoints  = []    # points outside polygon but inside surrounding rectangle.

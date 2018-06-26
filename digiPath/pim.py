@@ -109,11 +109,14 @@ class PIM(ImageDir):
     def __setSoftROIs(self):
         casepolyfilt = Polygons.soft_rects[:,0] == self.pimID
         polygons     = Polygons.polygons[casepolyfilt]
-        essentials   = Polygons.essentials[casepolyfilt]
+        #essentials   = Polygons.essentials[casepolyfilt]
+        filters      = {k:val[casepolyfilt] for k,val in Polygons.filters[DN.FILTERS_TOPK_POLY].items()}
+        filters[1]   = Polygons.filters[DN.FILTERS_ESSENTIALS][casepolyfilt]
         softrects    = Polygons.soft_rects[casepolyfilt]
         paths        = [self.RGB.path, self.HE.path, self.FGmask.path]
         for p in range(len(polygons)):
-            self.SoftROIs.append(SoftROI(softrects[p,1], softrects[p,2], polygons[p], essentials[p], paths, self.page))
+            filter_p = {k:val[p] for k,val in filters.items()}
+            self.SoftROIs.append(SoftROI(softrects[p,1], softrects[p,2], polygons[p], filter_p, paths, self.page))
 
     ### Reading .tif and .mat from file
     def readRGB(self):
@@ -135,23 +138,30 @@ class PIM(ImageDir):
     #    expertID = [expertID] if isinstance(expertID, int) else expertID
     #    for ROI in self.SoftROIs:
     #        if ROI.expertID in expertID: 
-    #            if ROI.isEssential or not onlyEssentials:
+    #            if ROI.is_essential or not onlyEssentials:
     #                ROI.draw(width=width, color=color)
-    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, essentials=0, width=3, color=None):
+    def drawSoftROIs(self, expertID=DN.EXPERT_ABBREV, topk=0, width=3, color=None):
         """
         draws softROI on image as a polygons.
         expertID denotes the expert for which the polygons will be drawn for.
-        essentials ->  0 for all polygons
-                   ->  1 for essential polygons
-                   -> -1 for non-essential polygons
+        topk ->  0 for all polygons
+             -> -1 for non-essential polygons
+             ->  1 for essential polygons
+             -> >1 for topk polygons; currently includes only [5,10,15,20,25,30]
         """
+        assert topk==0 or topk==-1 or topk in self.SoftROIs[0].filters
         expertID = [expertID] if isinstance(expertID, int) else expertID
         for ROI in self.SoftROIs:
             if ROI.expertID in expertID: 
-                if (essentials==1 and not ROI.isEssential) or (essentials==-1 and ROI.isEssential):
-                    continue
+                if topk == 0:
+                    ROI.draw(width=width, color=color)
+                elif topk == -1:
+                    if not ROI.filters[1]:
+                        ROI.draw(width=width, color=color)
                 else:
-                    ROI.draw(width=width, color=color)                    
+                    if ROI.filters[topk]:
+                        ROI.draw(width=width, color=color)
+                    
     ### Drawing/Displaying Consensus ROIs
     def drawConsensusROIs(self, width=3, color=None):
         for ROI in self.ConsensusROIs:        

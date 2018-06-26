@@ -6,7 +6,7 @@ Data Loader for Pathology image data files.
 License: Apache License 2.0
 author: Caner Mercan, 2018
 """
-
+import pdb
 import numpy as np
 from .directory import DataDir as DD
 from . import dataNames as DN
@@ -37,9 +37,9 @@ class Polygons():
     """
     Loading all polygons (and soft_rects) into memory.
     """
-    dir        = DD.DIR_DATA
+    dir         = DD.DIR_DATA
     polygons    = None
-    essentials  = None
+    filters     = None
     soft_rects  = None
     consensus_coords = None
     Lab_histograms = None
@@ -50,28 +50,30 @@ class Polygons():
 
     @staticmethod
     def loadPolygonsMat():
-        Polygons.polygons       = Polygons.__loadFromPolygonMat(DN.POLYGONS_KEY)
-        Polygons.essentials     = Polygons.__loadFromPolygonMat(DN.ESSENTIALS_KEY)
-        Polygons.soft_rects     = Polygons.__loadFromPolygonMat(DN.SOFTRECT_KEY, flatten=False)
+        Polygons.polygons       = Polygons.__loadFromPolygonMat(DN.POLYGONS_KEY, flatten=True)
+        Polygons.soft_rects     = Polygons.__loadFromPolygonMat(DN.SOFTRECT_KEY)
         Polygons.consensus_coords = Polygons.__loadFromDataMat(DN.CONSENSUS_COORDS_KEY)
         # extracted polygon features
-        Polygons.Lab_histograms = Polygons.__loadFromPolygonMat(DN.LAB_HISTOGRAMS_KEY, flatten=False)
-        Polygons.LBP_histograms = Polygons.__loadFromPolygonMat(DN.LBP_HISTOGRAMS_KEY, flatten=False)
-        Polygons.arch_features  = Polygons.__loadFromPolygonMat(DN.ARCH_FEATURES_KEY, flatten=False)
+        Polygons.Lab_histograms = Polygons.__loadFromPolygonMat(DN.LAB_HISTOGRAMS_KEY)
+        Polygons.LBP_histograms = Polygons.__loadFromPolygonMat(DN.LBP_HISTOGRAMS_KEY)
+        Polygons.arch_features  = Polygons.__loadFromPolygonMat(DN.ARCH_FEATURES_KEY)
         #Polygons.unique_expertIDs = np.unique(Polygons.soft_rects[:,1]).tolist()
         #Polygons.unique_actionIDs = np.unique(Polygons.soft_rects[:,2]).tolist()
+        Polygons.filters        = Polygons.__loadPolygonFilters__()
     
         # typically polygons/coords load into memory as uint16; may need to convert to signed not to have computational problems.        
         Polygons.polygons           = np.array(list(map(lambda x: x.astype(np.int32), Polygons.polygons)))
         Polygons.consensus_coords   = np.array(list(map(lambda x: x.astype(np.int32), Polygons.consensus_coords)))
         
     @staticmethod
-    def __loadFromPolygonMat(KEY, flatten=True):
+    def __loadFromPolygonMat(KEY, flatten=False, is_dict=False):
         """
         loads EXPERTs ROI polygons/soft_rects and etc. into memory
         """
         struct = sio.loadmat(DD.DIR_DATA + DN.POLYGONS_MFILE, variable_names=KEY)
         struct = struct[KEY].flatten() if flatten else struct[KEY]
+        struct = {key:value.squeeze() for key, value in zip(struct[0].dtype.names, struct[0])} if is_dict else struct
+
         return struct
     @staticmethod
     def __loadFromDataMat(KEY):
@@ -80,6 +82,12 @@ class Polygons():
         """
         struct = sio.loadmat(DD.DIR_DATA + DN.LABELS_MFILE, variable_names=KEY)
         struct = struct[KEY].flatten()
+        return struct
+    def __loadPolygonFilters__():
+        struct = Polygons.__loadFromPolygonMat(DN.POLYGON_FILTERS_KEY, flatten=True, is_dict=True)   
+        struct[DN.FILTERS_ESSENTIALS] = struct[DN.FILTERS_ESSENTIALS].astype(bool)
+        struct[DN.FILTERS_TOPK_POLY] = {k:topk.astype(bool) for k, topk in zip(struct[DN.FILTERS_K], struct[DN.FILTERS_TOPK_POLY])}
+        del struct[DN.FILTERS_K]
         return struct
     #@staticmethod
     #def __write2file(variable_names):
